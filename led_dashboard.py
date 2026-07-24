@@ -25,7 +25,10 @@ from rpi_ws281x import PixelStrip, Color
 # meow_sdk connects to the meow meow scratch API.
 # - Meow: the client we use to talk to the API
 # - MeowError: the exception raised when a request fails
-from meow_sdk import Meow, MeowError
+# Meow reads the colour from your public endpoint; MeowError catches API
+# failures. NotFoundError is a more specific kind of MeowError, raised when the
+# username, app, or endpoint doesn't exist (or isn't public).
+from meow_sdk import Meow, MeowError, NotFoundError
 
 # This project reads from a PUBLIC endpoint, so it uses a username instead of
 # an API key. Anyone can read public endpoints -- no secret needed. The other
@@ -97,8 +100,22 @@ def main():
                     print(f"Color set to {color_hex}")
                     last_color = color_hex
 
+            except NotFoundError as e:
+                # This project reads a PUBLIC endpoint, so there's no API key to
+                # be wrong. A "not found" almost always means one of three
+                # things: MEOW_USERNAME is misspelled, the app/endpoint names
+                # below don't match your dashboard, or the endpoint isn't public.
+                print(f"Couldn't find {USERNAME}/{APP}/{ENDPOINT}: {e}")
+                if e.hint:
+                    print(f"Hint: {e.hint}")
+                sys.exit(1)
             except MeowError as e:
+                # Anything else (network dropped, server busy) -- keep polling,
+                # the LEDs just stay on the last colour until it recovers.
                 print(f"Fetch failed: {e}")
+                # .hint is a plain-English fix from the API, when it has one.
+                if e.hint:
+                    print(f"Hint: {e.hint}")
 
             time.sleep(POLL_INTERVAL)  # Wait before polling again
     finally:
